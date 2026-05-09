@@ -59,6 +59,24 @@ app.get('/api/documents', async (req, res) => {
   }
 })
 
+// GET single document by ID
+app.get('/api/documents/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) throw error
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error occurred' })
+  }
+})
+
 //create
 app.post('/api/documents', async (req, res) => {
   try {

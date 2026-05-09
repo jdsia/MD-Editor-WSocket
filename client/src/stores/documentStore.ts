@@ -9,7 +9,7 @@ let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null
 interface DocumentState {
     documentId: string | null
     title: string
-    content: string
+    content: any // TipTap JSON object
     lastSaved: Date | null
     isSaving: boolean
 
@@ -20,7 +20,7 @@ interface DocumentState {
     // actions
     setDocumentId: (id: string | null) => void
     setTitle: (title: string) => void
-    setContent: (content: string) => void
+    setContent: (content: any) => void // TipTap JSON object
     saveDocument: () => Promise<void>
     loadDocument: (id: string) => Promise<void>
 
@@ -28,18 +28,26 @@ interface DocumentState {
     enableAutoSave: () => void
     disableAutoSave: () => void
     triggerAutoSave: () => void
+
+    //document list
+    documents: Array<{id: string, title: string, updated_at: string}>
+    loadAllDocuments: () => Promise<void>
+    selectDocument: (id: string) => void
 }
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
     documentId: null,
     title: '',
-    content: '',
+    content: { type: 'doc', content: [] }, // TipTap empty document
     lastSaved: null,
     isSaving: false,
 
     // NEW: Auto-save state
     autoSaveEnabled: false,
     saveStatus: 'saved' as const,
+
+    // document list
+    documents: [],
 
  
     // actions
@@ -82,7 +90,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         }
     },
  
-    loadDocument: async (id) => {
+    loadDocument: async (id: string) => {
         set({ saveStatus: 'saving' })
 
         try {
@@ -98,6 +106,15 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
             set({ saveStatus: 'error' })
             console.error('Load failed', error)
         }
+    },
+
+    loadAllDocuments: async () => {
+        const docs = await documentApi.getAll()
+        set({ documents: docs })
+    },
+
+    selectDocument: async (id: string) => {
+        await get().loadDocument(id)
     },
 
     // NEW: Auto-save actions

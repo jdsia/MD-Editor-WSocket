@@ -11,17 +11,17 @@ export function Editor() {
         content: content,
         onUpdate: ({ editor }) => {
             const newContent = editor.getJSON()
-            setContent(JSON.stringify(newContent))
+            setContent(newContent)
         },
         immediatelyRender: false,
     })
 
     useEffect(() => {
-        if (editor && content !== JSON.stringify(editor.getJSON())) {
+        if (editor && JSON.stringify(content) !== JSON.stringify(editor.getJSON())) {
             try {
                 editor.commands.setContent(content)
             } catch (e) {
-                editor.commands.setContent('')
+                editor.commands.setContent({ type: 'doc', content: [] })
             }
         }
     }, [content, editor])
