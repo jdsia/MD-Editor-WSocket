@@ -62,13 +62,13 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     setContent: (content) => {
         set({ content })
         // trigger autosave when content changes
-        console.log("content: " + content);
+        console.log("content:", JSON.stringify(content));
         get().triggerAutoSave()
     },
  
     saveDocument: async () => {
         const { documentId, title, content } = get()
-        console.log('saveDocument called:', { documentId, title, content: content.substring(0, 50) + '...' })
+        console.log('saveDocument called:', { documentId, title, content: JSON.stringify(content).substring(0, 50) + '...' })
         
         set({ saveStatus: 'saving' })
         try {
@@ -95,10 +95,37 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
         try {
             const doc = await documentApi.get(id)
+            console.log('Loaded doc content:', doc.content, typeof doc.content)
+            
+            let parsedContent = doc.content
+            // Handle triple-encoded JSON content
+            if (typeof doc.content === 'string') {
+                try {
+                    parsedContent = JSON.parse(doc.content)
+                    // Check if the parsed content still has a text field with JSON
+                    if (parsedContent.content && 
+                        parsedContent.content.length > 0 && 
+                        parsedContent.content[0].content &&
+                        parsedContent.content[0].content.length > 0 &&
+                        parsedContent.content[0].content[0].text) {
+                        const innerText = parsedContent.content[0].content[0].text
+                        // Try to parse the inner text as JSON
+                        try {
+                            parsedContent = JSON.parse(innerText)
+                        } catch (e) {
+                            // If parsing fails, the inner text might be the final content
+                            console.log('Could not parse inner text as JSON:', innerText)
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse content:', e)
+                    parsedContent = { type: 'doc', content: [] }
+                }
+            }
             set({
                 documentId: doc.id,
                 title: doc.title,
-                content: doc.content,
+                content: parsedContent,
                 lastSaved: new Date(doc.updated_at),
                 saveStatus: 'saved'
             })
