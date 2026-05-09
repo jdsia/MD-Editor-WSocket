@@ -6,12 +6,12 @@ Google Docs clone to learn websockets
 * **React**
 * TypeScript
 * Vite
-* **TipTap**
-* **Zustand**
+* **TipTap** - editor
+* **Zustand** - state management
 
 ### Backend Stack
 
 - Node.js
-- **Express**
-- **ws**
+- **Express** - server
+- **ws** - library for websockets
 - Supabase (PostgreSQL)
