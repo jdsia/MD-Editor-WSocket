@@ -5,11 +5,9 @@ import { DocumentList } from './components/DocumentList'
 
 function App() {
   return (
-    <div className="app" style={{ display: 'flex', height: '100vh' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', backgroundColor: '#ffffff' }}>
       <DocumentList />
-      <div style={{ flex: 1 }}>
-        <DocumentManager />
-      </div>
+      <DocumentManager />
     </div>
   )
 }
