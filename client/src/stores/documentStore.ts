@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 
+// Auto-save timeout reference (outside the store)
+let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null
+
+
 // shape of state
 interface DocumentState {
     documentId: string | null
@@ -9,6 +13,8 @@ interface DocumentState {
     isSaving: boolean
 
     // autosave fields
+    autoSaveEnabled: boolean
+    saveStatus: 'saved' | 'saving' | 'unsaved' | 'error'
 
     // actions
     setDocumentId: (id: string | null) => void
@@ -16,6 +22,11 @@ interface DocumentState {
     setContent: (content: string) => void
     saveDocument: () => Promise<void>
     loadDocument: (id: string) => Promise<void>
+
+    // autosave actions
+    enableAutoSave: () => void
+    disableAutoSave: () => void
+    triggerAutoSave: () => void
 }
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
@@ -24,10 +35,27 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     content: '',
     lastSaved: null,
     isSaving: false,
+
+    // NEW: Auto-save state
+    autoSaveEnabled: false,
+    saveStatus: 'saved',
+
  
+    // actions
     setDocumentId: (id) => set({ documentId: id }),
-    setTitle: (title) => set({ title }),
-    setContent: (content) => set({ content }),
+    setTitle: (title) => {
+        set({ title })
+        console.log("title: " + title);
+        // trigger autosave when title changes
+        get().triggerAutoSave()
+    },
+    // this is triggered every time content is changed. assuming it uses hooks or something.
+    setContent: (content) => {
+        set({ content })
+        // trigger autosave when content changes
+        console.log("content: " + content);
+        get().triggerAutoSave()
+    },
  
     saveDocument: async () => {
         const { documentId, title, content } = get()
@@ -39,12 +67,12 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
             return
         }
  
-        set({ isSaving: true })
+        set({ saveStatus: 'saving' })
         try {
             // await updateDocument(documentId, { title, content })
             set({ 
                 lastSaved: new Date(),
-                isSaving: false 
+                saveStatus: 'saved' 
             })
         } catch (error) {
             set({ isSaving: false })
@@ -67,5 +95,43 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
             set({ isSaving: false })
             throw error
         }
-    }
+    },
+
+    // NEW: Auto-save actions
+    enableAutoSave: () => set({ autoSaveEnabled: true }),
+    
+    disableAutoSave: () => {
+        set({ autoSaveEnabled: false })
+        if (autoSaveTimeout) {
+            clearTimeout(autoSaveTimeout)
+            autoSaveTimeout = null
+        }
+    },
+
+    triggerAutoSave: () => {
+        const { autoSaveEnabled, isSaving } = get()
+        
+        // Don't auto-save if disabled or already saving
+        if (!autoSaveEnabled || isSaving) return
+        
+        // Clear any existing auto-save timeout
+        if (autoSaveTimeout) {
+            clearTimeout(autoSaveTimeout)
+        }
+        
+        // Set status to unsaved immediately
+        set({ saveStatus: 'unsaved' })
+        
+        // Schedule save after 1 second of inactivity
+        autoSaveTimeout = setTimeout(async () => {
+            try {
+                await get().saveDocument()
+                set({ saveStatus: 'saved' })
+            } catch (error) {
+                set({ saveStatus: 'error' })
+                console.error('Auto-save failed:', error)
+            }
+        }, 1000)
+    },
+
 }))
