@@ -1,9 +1,18 @@
 // components/DocumentManager.tsx
 import { useDocumentStore } from '../stores/documentStore'
 import { Editor } from './editor/Editor'
+import { useEffect } from 'react'
 
 export function DocumentManager() {
-  const { title, setTitle, saveDocument, loadDocument, isSaving } = useDocumentStore()
+  const { title, setTitle, saveDocument, loadDocument, saveStatus, enableAutoSave, disableAutoSave } = useDocumentStore()
+
+  // Enable auto-save when component mounts
+  useEffect(() => {
+    enableAutoSave()
+    
+    // Cleanup: disable auto-save when unmounting
+    return () => disableAutoSave()
+  }, [enableAutoSave, disableAutoSave])
   
   return (
     <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
@@ -25,18 +34,18 @@ export function DocumentManager() {
       <div style={{ marginBottom: '10px', display: 'flex', gap: '12px' }}>
         <button 
           onClick={saveDocument}
-          disabled={isSaving}
+          disabled={saveStatus === 'saving'}
           style={{ 
             padding: '10px 20px',
-            backgroundColor: isSaving ? '#6c757d' : '#007bff',
+            backgroundColor: saveStatus === 'saving' ? '#6c757d' : '#007bff',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: isSaving ? 'not-allowed' : 'pointer',
+            cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer',
             fontSize: '14px'
           }}
         >
-          {isSaving ? 'Saving...' : 'Save Document'}
+          {saveStatus === 'saving' ? 'Saving...' : 'Save Document'}
         </button>
         
         <button 

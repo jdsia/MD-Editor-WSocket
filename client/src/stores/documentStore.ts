@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { documentApi } from '../api/documents'
 
 // Auto-save timeout reference (outside the store)
 let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null
@@ -38,7 +39,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
     // NEW: Auto-save state
     autoSaveEnabled: false,
-    saveStatus: 'saved',
+    saveStatus: 'saved' as const,
 
  
     // actions
@@ -59,41 +60,43 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
  
     saveDocument: async () => {
         const { documentId, title, content } = get()
+        console.log('saveDocument called:', { documentId, title, content: content.substring(0, 50) + '...' })
         
-        if (!documentId) {
-            // Create new document first
-            // const newDoc = await createDocument({ title, content })
-            // set({ documentId: newDoc.id })
-            return
-        }
- 
         set({ saveStatus: 'saving' })
         try {
-            // await updateDocument(documentId, { title, content })
-            set({ 
-                lastSaved: new Date(),
-                saveStatus: 'saved' 
-            })
+            let result 
+            if (!documentId) {
+                console.log('Creating new document...')
+                result = await documentApi.create({ title, content })
+                console.log('Create result:', result)
+                set({ documentId: result.id, saveStatus: 'saved', lastSaved: new Date(result.updated_at) })
+            } else {
+                console.log('Updating document:', documentId)
+                result = await documentApi.update(documentId, { title, content })
+                console.log('Update result:', result)
+                set({ saveStatus: 'saved', lastSaved: new Date(result.updated_at)})
+            }
         } catch (error) {
-            set({ isSaving: false })
-            throw error
+            console.error('Save failed:', error)
+            set({ saveStatus: 'error' })
         }
     },
  
     loadDocument: async (id) => {
-        set({ isSaving: true })
+        set({ saveStatus: 'saving' })
+
         try {
-            // const doc = await fetchDocument(id)
-            // set({
-            //     documentId: doc.id,
-            //     title: doc.title,
-            //     content: doc.content,
-            //     lastSaved: doc.lastSaved,
-            //     isSaving: false
-            // })
+            const doc = await documentApi.get(id)
+            set({
+                documentId: doc.id,
+                title: doc.title,
+                content: doc.content,
+                lastSaved: new Date(doc.updated_at),
+                saveStatus: 'saved'
+            })
         } catch (error) {
-            set({ isSaving: false })
-            throw error
+            set({ saveStatus: 'error' })
+            console.error('Load failed', error)
         }
     },
 
@@ -109,10 +112,14 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     },
 
     triggerAutoSave: () => {
-        const { autoSaveEnabled, isSaving } = get()
+        const { autoSaveEnabled, saveStatus} = get()
+        console.log('triggerAutoSave called:', { autoSaveEnabled, saveStatus })
         
         // Don't auto-save if disabled or already saving
-        if (!autoSaveEnabled || isSaving) return
+        if (!autoSaveEnabled || saveStatus === 'saving') {
+            console.log('Auto-save blocked: autoSaveEnabled=', autoSaveEnabled, 'saveStatus=', saveStatus)
+            return
+        }
         
         // Clear any existing auto-save timeout
         if (autoSaveTimeout) {
@@ -126,7 +133,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         autoSaveTimeout = setTimeout(async () => {
             try {
                 await get().saveDocument()
-                set({ saveStatus: 'saved' })
+                //set({ saveStatus: 'saved' })
             } catch (error) {
                 set({ saveStatus: 'error' })
                 console.error('Auto-save failed:', error)
