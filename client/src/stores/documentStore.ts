@@ -94,38 +94,14 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         set({ saveStatus: 'saving' })
 
         try {
+            // had to use await. Because the api returns a PROMISE not actual docs.
+            // doc is a promise object.
             const doc = await documentApi.get(id)
-            console.log('Loaded doc content:', doc.content, typeof doc.content)
-            
-            let parsedContent = doc.content
-            // Handle triple-encoded JSON content
-            if (typeof doc.content === 'string') {
-                try {
-                    parsedContent = JSON.parse(doc.content)
-                    // Check if the parsed content still has a text field with JSON
-                    if (parsedContent.content && 
-                        parsedContent.content.length > 0 && 
-                        parsedContent.content[0].content &&
-                        parsedContent.content[0].content.length > 0 &&
-                        parsedContent.content[0].content[0].text) {
-                        const innerText = parsedContent.content[0].content[0].text
-                        // Try to parse the inner text as JSON
-                        try {
-                            parsedContent = JSON.parse(innerText)
-                        } catch (e) {
-                            // If parsing fails, the inner text might be the final content
-                            console.log('Could not parse inner text as JSON:', innerText)
-                        }
-                    }
-                } catch (e) {
-                    console.error('Failed to parse content:', e)
-                    parsedContent = { type: 'doc', content: [] }
-                }
-            }
-            set({
+
+            set ({
                 documentId: doc.id,
                 title: doc.title,
-                content: parsedContent,
+                content: doc.content, // This is now markdown string
                 lastSaved: new Date(doc.updated_at),
                 saveStatus: 'saved'
             })
@@ -133,6 +109,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
             set({ saveStatus: 'error' })
             console.error('Load failed', error)
         }
+
     },
 
     loadAllDocuments: async () => {

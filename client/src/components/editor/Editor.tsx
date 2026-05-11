@@ -1,42 +1,55 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
+import { Markdown } from "@tiptap/markdown";
 import { useEffect } from "react";
 import { useDocumentStore } from "../../stores/documentStore";
+import TurndownService from "turndown";
+
+
+// Create turndown service for HTML to markdown conversion
+const turndownService = new TurndownService({
+    headingStyle: 'atx', // Use # headings instead of <h1> tags
+    codeBlockStyle: 'fenced', // Use ``` for code blocks
+});
 
 export function Editor() {
     const { content, setContent } = useDocumentStore();
 
+
     const editor = useEditor({
-        extensions: [StarterKit],
+        extensions: [
+            StarterKit,
+            Markdown.configure({
+                markedOptions: {
+                    gfm: true,
+                    breaks: true,
+                },
+            })
+        ],
         content: '', // Start empty
         onUpdate: ({ editor }) => {
-            const newContent = editor.getJSON()
-            setContent(newContent)
+            // Convert rich text to markdown for storage
+            const htmlContent = editor.getHTML()
+            const markdownContent = turndownService.turndown(htmlContent)
+            if (markdownContent !== content) {
+                setContent(markdownContent)
+            }
         },
         immediatelyRender: false,
     })
 
     useEffect(() => {
         if (editor) {
-            console.log('Content type:', typeof content, content)
-            console.log('Content stringified:', JSON.stringify(content, null, 2))
+            // Get current editor content to compare
+            const currentMarkdown = turndownService.turndown(editor.getHTML())
             
-            // Try different content formats
-            if (typeof content === 'string') {
-                try {
-                    const parsed = JSON.parse(content)
-                    console.log('Parsed content:', parsed)
-                    editor.commands.setContent(parsed)
-                } catch (e) {
-                    console.log('Content is not valid JSON, trying as plain text')
-                    editor.commands.setContent('<p>' + content + '</p>')
+            // Only update if content is different
+            if (currentMarkdown !== content) {
+                if (typeof content === 'string' && content.trim()) {
+                    editor.commands.setContent(content)
+                } else {
+                    editor.commands.setContent('<p></p>')
                 }
-            } else if (content && typeof content === 'object') {
-                console.log('Content is object, setting directly')
-                editor.commands.setContent(content)
-            } else {
-                console.log('Content is empty or invalid, setting empty content')
-                editor.commands.setContent('<p></p>')
             }
         }
     }, [content, editor])
