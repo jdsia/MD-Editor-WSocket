@@ -70,17 +70,27 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         const { documentId, title, content } = get()
         console.log('saveDocument called:', { documentId, title, content: JSON.stringify(content).substring(0, 50) + '...' })
         
+        // Convert TipTap JSON to HTML for API storage
+        let contentForApi = content
+        if (content && typeof content === 'object' && content.type === 'doc') {
+            // Create a temporary editor to convert JSON to HTML
+            const tempDiv = document.createElement('div')
+            // Simple conversion: for now, we'll store as JSON string
+            // In a more complete implementation, you'd use TipTap's HTML serialization
+            contentForApi = JSON.stringify(content)
+        }
+        
         set({ saveStatus: 'saving' })
         try {
             let result 
             if (!documentId) {
                 console.log('Creating new document...')
-                result = await documentApi.create({ title, content })
+                result = await documentApi.create({ title, content: contentForApi })
                 console.log('Create result:', result)
                 set({ documentId: result.id, saveStatus: 'saved', lastSaved: new Date(result.updated_at) })
             } else {
                 console.log('Updating document:', documentId)
-                result = await documentApi.update(documentId, { title, content })
+                result = await documentApi.update(documentId, { title, content: contentForApi })
                 console.log('Update result:', result)
                 set({ saveStatus: 'saved', lastSaved: new Date(result.updated_at)})
             }
@@ -98,10 +108,24 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
             // doc is a promise object.
             const doc = await documentApi.get(id)
 
+            // Convert stored content back to TipTap JSON if it's a JSON string
+            let contentForStore = doc.content
+            if (typeof doc.content === 'string') {
+                try {
+                    const parsed = JSON.parse(doc.content)
+                    if (parsed && typeof parsed === 'object' && parsed.type === 'doc') {
+                        contentForStore = parsed
+                    }
+                } catch (e) {
+                    // If parsing fails, treat as plain text content
+                    contentForStore = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: doc.content }] }] }
+                }
+            }
+
             set ({
                 documentId: doc.id,
                 title: doc.title,
-                content: doc.content, // This is now markdown string
+                content: contentForStore,
                 lastSaved: new Date(doc.updated_at),
                 saveStatus: 'saved'
             })

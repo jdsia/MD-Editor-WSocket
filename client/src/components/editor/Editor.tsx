@@ -13,19 +13,19 @@ export function Editor() {
         content: '', // Start empty
         immediatelyRender: false,
         onUpdate: ({ editor }) => {
-            // Save HTML content directly for now (no markdown conversion)
-            const htmlContent = editor.getHTML()
-            if (htmlContent !== content) {
-                setContent(htmlContent)
+            // Save content as TipTap JSON format
+            const jsonContent = editor.getJSON()
+            if (JSON.stringify(jsonContent) !== JSON.stringify(content)) {
+                setContent(jsonContent)
             }
         },
     })
 
     useEffect(() => {
         if (editor && content !== undefined) {
-            // Handle markdown content - treat everything as markdown string
-            if (typeof content === 'string' && content.trim()) {
-                // Set content as markdown - TipTap will parse it automatically
+            // Handle TipTap JSON content
+            if (content && typeof content === 'object' && content.type === 'doc') {
+                // Set content as TipTap JSON
                 editor.commands.setContent(content)
             } else {
                 // Set empty paragraph for empty content
