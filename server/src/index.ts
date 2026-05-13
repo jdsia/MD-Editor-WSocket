@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import { createServer } from 'http'
+import { WebSocketServer, WebSocket } from 'ws'
 
 // load env vars
 dotenv.config()
@@ -9,11 +11,17 @@ dotenv.config()
 import { supabase } from './db'
 
 const app = express()
-const PORT = process.env.PORT || 3001
-
 //middleware
 app.use(cors())
 app.use(express.json())
+
+const PORT = process.env.PORT || 3001
+
+// create HTTP server manually using express app
+const httpServer = createServer(app)
+// attach websocketserver to that specific http server
+const wss = new WebSocketServer({ server: httpServer })
+
 
 // health check
 app.get('/health', (req, res) => {
@@ -137,9 +145,24 @@ app.delete('/api/documents/:id', async (req, res) => {
 })
 
 
+// websocket connection
+wss.on('connection', (socket: WebSocket, request) => {
+  console.log('Client connected')
+  
+  socket.on('message', (raw) => {
+    const msg = JSON.parse(raw.toString())
+    console.log('Received message:', msg)
+  })
+  
+  socket.on('close', () => console.log('Client disconnected'));
+  socket.on('error', (err) => console.error('Socket error:', err));
+
+
+})
+
 
 
 // start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })

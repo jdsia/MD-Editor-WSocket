@@ -54,7 +54,6 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     setDocumentId: (id) => set({ documentId: id }),
     setTitle: (title) => {
         set({ title })
-        console.log("title: " + title);
         // trigger autosave when title changes
         get().triggerAutoSave()
     },
@@ -62,13 +61,11 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     setContent: (content) => {
         set({ content })
         // trigger autosave when content changes
-        console.log("content:", JSON.stringify(content));
         get().triggerAutoSave()
     },
  
     saveDocument: async () => {
         const { documentId, title, content } = get()
-        console.log('saveDocument called:', { documentId, title, content: JSON.stringify(content).substring(0, 50) + '...' })
         
         // Convert TipTap JSON to HTML for API storage
         let contentForApi = content
@@ -84,14 +81,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         try {
             let result 
             if (!documentId) {
-                console.log('Creating new document...')
                 result = await documentApi.create({ title, content: contentForApi })
-                console.log('Create result:', result)
                 set({ documentId: result.id, saveStatus: 'saved', lastSaved: new Date(result.updated_at) })
             } else {
-                console.log('Updating document:', documentId)
                 result = await documentApi.update(documentId, { title, content: contentForApi })
-                console.log('Update result:', result)
                 set({ saveStatus: 'saved', lastSaved: new Date(result.updated_at)})
             }
         } catch (error) {
@@ -158,11 +151,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
     triggerAutoSave: () => {
         const { autoSaveEnabled, saveStatus} = get()
-        console.log('triggerAutoSave called:', { autoSaveEnabled, saveStatus })
         
         // Don't auto-save if disabled or already saving
         if (!autoSaveEnabled || saveStatus === 'saving') {
-            console.log('Auto-save blocked: autoSaveEnabled=', autoSaveEnabled, 'saveStatus=', saveStatus)
             return
         }
         

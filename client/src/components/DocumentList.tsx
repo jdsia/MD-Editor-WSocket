@@ -6,12 +6,10 @@ export function DocumentList() {
   const { documents, loadAllDocuments, selectDocument, documentId } = useDocumentStore()
   
   useEffect(() => {
-    console.log('DocumentList mounted, loading documents...')
     loadAllDocuments()
   }, [])
   
   useEffect(() => {
-    console.log('Documents updated:', documents)
   }, [documents])
   
   return (
