@@ -3,6 +3,9 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
+import { joinRoom, leaveRoom, broadcastToRoom, Client } from './websocket/rooms'
+import { WsMessage } from '../../shared/types/ws-messages'
+
 
 // load env vars
 dotenv.config()
@@ -25,7 +28,7 @@ const wss = new WebSocketServer({ server: httpServer })
 
 // health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
 
@@ -36,17 +39,17 @@ app.get('/test-db', async (req, res) => {
       .from('documents')
       .select('count')
       .single()
-    
+
     if (error) throw error
-    
-    res.json({ 
-      status: 'connected', 
+
+    res.json({
+      status: 'connected',
       count: data?.count || 0,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
-    res.status(500).json({ 
-      status: 'error', 
+    res.status(500).json({
+      status: 'error',
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     })
   }
@@ -55,10 +58,10 @@ app.get('/test-db', async (req, res) => {
 // GET all docs
 app.get('/api/documents', async (req, res) => {
   try {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from('documents')
       .select('*')
-      .order('updated_at', { ascending: false})
+      .order('updated_at', { ascending: false })
 
     if (error) throw error
     res.json(data)
@@ -71,7 +74,7 @@ app.get('/api/documents', async (req, res) => {
 app.get('/api/documents/:id', async (req, res) => {
   try {
     const { id } = req.params
-    
+
     const { data, error } = await supabase
       .from('documents')
       .select('*')
@@ -116,8 +119,8 @@ app.put('/api/documents/:id', async (req, res) => {
       .eq('id', id)
       .select()
       .single()
-      // eq, selects rows where specific col (id) is only equal to a specific value
-      // .single() - returns data as a single object instead of an array of objects
+    // eq, selects rows where specific col (id) is only equal to a specific value
+    // .single() - returns data as a single object instead of an array of objects
 
     if (error) throw error
     res.json(data)
@@ -130,14 +133,14 @@ app.put('/api/documents/:id', async (req, res) => {
 app.delete('/api/documents/:id', async (req, res) => {
   try {
     const { id } = req.params
-    
+
     const { error } = await supabase
       .from('documents')
       .delete()
       .eq('id', id)
-    
+
     if (error) throw error
-    
+
     res.json({ success: true })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error occurred' })
@@ -148,21 +151,86 @@ app.delete('/api/documents/:id', async (req, res) => {
 // websocket connection
 wss.on('connection', (socket: WebSocket, request) => {
   console.log('Client connected')
-  
-  socket.on('message', (raw) => {
-    const msg = JSON.parse(raw.toString())
-    console.log('Received message:', msg)
+
+  // We initialize the client with just the socket. 
+  // We'll fill in the rest when they send a 'join-room' message.
+  const currentClient: Partial<Client> = {
+    socket: socket
+  }
+
+  socket.on('message', (rawMessage) => {
+    try {
+      const message = JSON.parse(rawMessage.toString()) as WsMessage;
+
+      switch (message.type) {
+        case 'join-room':
+          // 1. Populate our client object with the info they sent
+          currentClient.userId = message.userId;
+          currentClient.documentId = message.documentId;
+          currentClient.color = message.color;
+
+          // 2. Add them to the room
+          joinRoom(message.documentId, currentClient as Client);
+
+          // 3. Optional: Broadcast to everyone else that they joined
+          broadcastToRoom(message.documentId, currentClient as Client, {
+            type: 'user-joined',
+            userId: message.userId,
+            color: message.color
+          });
+          break;
+
+        case 'document-update':
+          // If they send a document update, just forward it exactly as-is to everyone else
+          if (currentClient.documentId) {
+            broadcastToRoom(currentClient.documentId, currentClient as Client, message);
+          }
+          break;
+
+        case 'cursor-position':
+          // Same with cursor positions
+          if (currentClient.documentId) {
+            broadcastToRoom(currentClient.documentId, currentClient as Client, message);
+          }
+          break;
+
+        case 'leave-room':
+          if (currentClient.documentId) {
+            // Remove them from the room
+            leaveRoom(currentClient.documentId, currentClient as Client);
+
+            // Let everyone else know they left
+            broadcastToRoom(currentClient.documentId, currentClient as Client, {
+              type: 'user-left',
+              userId: currentClient.userId
+            });
+          }
+          break;
+      }
+    } catch (error) {
+      console.error("Failed to parse WebSocket message", error);
+    }
   })
-  
-  socket.on('close', () => console.log('Client disconnected'));
+
+  socket.on('close', () => {
+    console.log('Client disconnected');
+
+    // If they unexpectedly disconnect, we must clean them up from the room!
+    if (currentClient.documentId && currentClient.userId) {
+      leaveRoom(currentClient.documentId, currentClient as Client);
+      broadcastToRoom(currentClient.documentId, currentClient as Client, {
+        type: 'user-left',
+        userId: currentClient.userId
+      });
+    }
+  });
+
   socket.on('error', (err) => console.error('Socket error:', err));
-
-
 })
 
 
 
 // start server
 httpServer.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
+  console.log(`Server running on port ${PORT}`)
 })
