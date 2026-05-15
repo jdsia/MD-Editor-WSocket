@@ -9,6 +9,11 @@
     // this was erroring it out, TS needs this to support JSX
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*", "../shared/**/*"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*",
+    "../shared/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

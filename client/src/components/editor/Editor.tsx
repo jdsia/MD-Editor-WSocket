@@ -1,35 +1,51 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useDocumentStore } from "../../stores/documentStore";
 import { useCollabSocket } from "../../hooks/useCollabSocket";
+import { useAuthStore } from "../../stores/authStore";
 
-const DEMO_DOCUMENT_ID = "my-collab-document";
-const DEMO_USER_ID = "user-" + Math.floor(Math.random() * 1000);
 
 
 export function Editor() {
-    const { content, setContent } = useDocumentStore();
+    const { content, setContent, documentId } = useDocumentStore();
+    const { user } = useAuthStore();
 
     const handleRemoteUpdate = useCallback((newContent: any) => {
         setContent(newContent)
     }, [setContent])
 
-    const { sendUpdate } = useCollabSocket(DEMO_DOCUMENT_ID, DEMO_USER_ID, handleRemoteUpdate);
+    const { sendUpdate } = useCollabSocket(documentId || '', user?.id || 'anon', handleRemoteUpdate)
 
+    // Bulletproof refs to prevent stale closures and infinite ping-pong loops
+    const contentRef = useRef(content);
+    const sendUpdateRef = useRef(sendUpdate);
+    
+    useEffect(() => {
+        contentRef.current = content;
+    }, [content]);
+
+    useEffect(() => {
+        sendUpdateRef.current = sendUpdate;
+    }, [sendUpdate]);
 
     const editor = useEditor({
         extensions: [
             StarterKit,
         ],
+        editorProps: {
+            attributes: {
+                style: 'min-height: calc(100vh - 150px); outline: none;'
+            }
+        },
         content: '', // Start empty
         immediatelyRender: false,
         onUpdate: ({ editor }) => {
-            // Save content as TipTap JSON format
             const jsonContent = editor.getJSON()
-            if (JSON.stringify(jsonContent) !== JSON.stringify(content)) {
+            // Compare with the LATEST content to prevent echo loops
+            if (JSON.stringify(jsonContent) !== JSON.stringify(contentRef.current)) {
                 setContent(jsonContent)
-                sendUpdate(jsonContent)
+                sendUpdateRef.current(jsonContent)
             }
         },
     })

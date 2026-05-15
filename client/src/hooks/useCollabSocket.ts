@@ -9,6 +9,9 @@ export function useCollabSocket(
     const socketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
+
+        // dont connect if we dont have a document id
+        if (!documentId) return;
         // Initialize the WebSocket connection
         const ws = new WebSocket('ws://localhost:3001');
         socketRef.current = ws;
