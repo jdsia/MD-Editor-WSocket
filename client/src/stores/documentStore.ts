@@ -135,6 +135,15 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     },
 
     selectDocument: async (id: string) => {
+        const { saveStatus, saveDocument, documentId } = get()
+        
+        if (id === documentId) return;
+
+        // If there are pending changes, save them immediately before switching!
+        if (saveStatus === 'unsaved') {
+            await saveDocument()
+        }
+        
         await get().loadDocument(id)
     },
 
@@ -152,8 +161,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     triggerAutoSave: () => {
         const { autoSaveEnabled, saveStatus} = get()
         
-        // Don't auto-save if disabled or already saving
-        if (!autoSaveEnabled || saveStatus === 'saving') {
+        // Don't auto-save if disabled
+        if (!autoSaveEnabled) {
             return
         }
         

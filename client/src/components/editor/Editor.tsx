@@ -25,8 +25,8 @@ export function Editor() {
     const sendUpdateRef = useRef<any>(null);
 
     const handleRemoteMessage = useCallback((message: any) => {
-        console.log("RECEIVED REMOTE MESSAGE:", message.type, "Bytes:", message.content?.length);
         if (message.type === 'document-update') {
+            setReceivedUpdate(true);
             const update = new Uint8Array(message.content);
             Y.applyUpdate(ydoc, update, 'remote');
         } else if (message.type === 'cursor-position') {
@@ -38,7 +38,7 @@ export function Editor() {
             if (sendUpdateRef.current) {
                 const fullState = Y.encodeStateAsUpdate(ydoc);
                 sendUpdateRef.current('document-update', Array.from(fullState));
-                
+
                 const awarenessState = encodeAwarenessUpdate(awareness, [awareness.clientID]);
                 sendUpdateRef.current('cursor-position', Array.from(awarenessState));
             }
@@ -60,8 +60,7 @@ export function Editor() {
         const handleYjsUpdate = (update: Uint8Array, origin: any) => {
             if (origin !== 'remote') {
                 const updateArray = Array.from(update);
-                console.log("SENDING DOCUMENT UPDATE. Bytes:", updateArray.length);
-                sendUpdate('document-update', updateArray); 
+                sendUpdate('document-update', updateArray);
             }
         }
         ydoc.on('update', handleYjsUpdate);
@@ -110,6 +109,7 @@ export function Editor() {
 
 
     const [roomCount, setRoomCount] = useState<number | null>(null);
+    const [receivedUpdate, setReceivedUpdate] = useState(false);
 
     // We must manually inject the initial content from Supabase into Yjs!
     const isLoadedRef = useRef(false);
@@ -118,12 +118,13 @@ export function Editor() {
         // Reset our loaded flag whenever we switch documents
         isLoadedRef.current = false;
         setRoomCount(null);
+        setReceivedUpdate(false);
     }, [documentId]);
 
     useEffect(() => {
         // Only proceed if editor is ready, content from DB is loaded, and we know our room count
         if (editor && content !== undefined && !isLoadedRef.current && roomCount !== null) {
-            
+
             // If we are the FIRST person in the room, we MUST inject the database text into Yjs
             if (roomCount === 1) {
                 if (content && typeof content === 'object' && content.type === 'doc') {
@@ -131,13 +132,29 @@ export function Editor() {
                 } else {
                     editor.commands.setContent('<p></p>');
                 }
-            } 
-            // If roomCount > 1, DO NOT INJECT DATABASE TEXT!
+                isLoadedRef.current = true;
+            }
+            // If roomCount > 1, DO NOT INJECT DATABASE TEXT IMMEDIATELY!
             // We wait for the existing clients to send us the full Yjs state via 'document-update'!
-
-            isLoadedRef.current = true;
+            // HOWEVER, if the room count was wrong due to a "ghost" socket (a user who just left),
+            // no one will send us the state. We use a 1 second timeout as a fallback!
+            else if (roomCount > 1) {
+                const timeout = setTimeout(() => {
+                    if (!isLoadedRef.current && !receivedUpdate) {
+                        console.log("Timeout reached, no peers responded. Injecting DB content...");
+                        if (content && typeof content === 'object' && content.type === 'doc') {
+                            editor.commands.setContent(content);
+                        } else {
+                            editor.commands.setContent('<p></p>');
+                        }
+                        isLoadedRef.current = true;
+                    }
+                }, 1000);
+                
+                return () => clearTimeout(timeout);
+            }
         }
-    }, [editor, content, roomCount]);
+    }, [editor, content, roomCount, receivedUpdate]);
 
     return <EditorContent editor={editor} />
 }

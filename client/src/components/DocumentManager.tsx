@@ -13,6 +13,19 @@ export function DocumentManager() {
     // Cleanup: disable auto-save when unmounting
     return () => disableAutoSave()
   }, [enableAutoSave, disableAutoSave])
+
+  // Prevent closing the tab if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (useDocumentStore.getState().saveStatus === 'unsaved') {
+        e.preventDefault();
+        e.returnValue = ''; // Required for Chrome
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
   
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
