@@ -169,8 +169,11 @@ wss.on('connection', (socket: WebSocket, request) => {
           currentClient.documentId = message.documentId;
           currentClient.color = message.color;
 
-          // 2. Add them to the room
-          joinRoom(message.documentId, currentClient as Client);
+          // 2. Add them to the room and get the size
+          const roomSize = joinRoom(message.documentId, currentClient as Client);
+
+          // Tell the joining client if they are the first one!
+          socket.send(JSON.stringify({ type: 'room-joined', count: roomSize }));
 
           // 3. Optional: Broadcast to everyone else that they joined
           broadcastToRoom(message.documentId, currentClient as Client, {

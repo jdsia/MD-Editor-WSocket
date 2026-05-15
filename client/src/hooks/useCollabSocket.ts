@@ -4,7 +4,7 @@ import { WsMessage } from '../../../shared/types/ws-messages';
 export function useCollabSocket(
     documentId: string,
     userId: string,
-    onRemoteUpdate?: (content: any) => void
+    onRemoteMessage?: (message: WsMessage) => void
 ) {
     const socketRef = useRef<WebSocket | null>(null);
 
@@ -36,15 +36,12 @@ export function useCollabSocket(
 
                 switch (message.type) {
                     case 'document-update':
-                        // When we receive an update from the server, 
-                        // pass it up to the Editor component if the callback exists
-                        if (onRemoteUpdate) {
-                            onRemoteUpdate(message.content);
-                        }
-                        break;
-
+                    case 'cursor-position':
                     case 'user-joined':
-                        console.log("User joined:", message.userId);
+                    case 'room-joined':
+                        if (onRemoteMessage) {
+                            onRemoteMessage(message);
+                        }
                         break;
 
                     case 'user-left':
@@ -61,22 +58,21 @@ export function useCollabSocket(
                 ws.close();
             }
         };
-    }, [documentId, userId, onRemoteUpdate]);
+    }, [documentId, userId, onRemoteMessage]);
 
-    // Helper function for the Editor to call when the user types
-    const sendUpdate = useCallback((content: any) => {
+    const sendUpdate = useCallback((type: 'document-update' | 'cursor-position', content: any) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
-
-            // Construct and send the document-update message
             const updateMessage: WsMessage = {
-                type: 'document-update',
+                type: type as any, // Cast to avoid TS error
                 documentId: documentId,
-                content: content
-            };
+                content: content,
+                userId: userId, // Some types require userId
+                position: 0 // Dummy value to satisfy old cursor-position type
+            } as WsMessage;
 
             socketRef.current.send(JSON.stringify(updateMessage));
         }
-    }, [documentId]);
+    }, [documentId, userId]);
 
     return { sendUpdate };
 }

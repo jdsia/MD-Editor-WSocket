@@ -4,7 +4,7 @@ import { Editor } from './editor/Editor'
 import { useEffect } from 'react'
 
 export function DocumentManager() {
-  const { title, setTitle, saveDocument, saveStatus, enableAutoSave, disableAutoSave } = useDocumentStore()
+  const { title, setTitle, saveDocument, saveStatus, enableAutoSave, disableAutoSave, documentId } = useDocumentStore()
 
   // Enable auto-save when component mounts
   useEffect(() => {
@@ -87,7 +87,7 @@ export function DocumentManager() {
       </div>
 
       <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#ffffff' }}>
-        <Editor />
+        <Editor key={documentId || 'empty'} />
       </div>
     </div>
   )

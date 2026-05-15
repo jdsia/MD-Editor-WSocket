@@ -15,7 +15,7 @@ const rooms = new Map<string, Set<Client>>();
 
 // 3. Helper functions
 
-export function joinRoom(documentId: string, client: Client) {
+export function joinRoom(documentId: string, client: Client): number {
     // check if we alr have a room for doc
     if (!rooms.has(documentId)) {
         // if not, initialize new empty set for this documentId
@@ -24,7 +24,9 @@ export function joinRoom(documentId: string, client: Client) {
 
     // 3. Get the Set for this room and add the client to it
     // We use the '!' non-null assertion because we just guaranteed the room exists above
-    rooms.get(documentId)!.add(client)
+    const room = rooms.get(documentId)!;
+    room.add(client);
+    return room.size;
 }
 
 export function leaveRoom(documentId: string, client: Client) {
